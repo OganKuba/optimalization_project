@@ -113,7 +113,8 @@ CDState cd_create_state(const double *X, const double *y,
 
     st.gamma_prev = 0.0;  // γ₋₁
     const double lambda2 = 1e-4;
-    st.sigma = lambda2;
+    // st.sigma = lambda2;
+    st.sigma = 0.0;
 
     st.norm2 = precompute_col_norm2(X, m, n);
 
