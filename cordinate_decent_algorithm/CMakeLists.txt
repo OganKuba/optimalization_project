@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(lasso_cd C)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -fopenmp")
 
 set(CMAKE_C_STANDARD 11)
 
@@ -61,3 +62,4 @@ target_include_directories(lasso_cd PUBLIC
 )
 
 target_link_libraries(lasso_cd m)  # link libm for math
+target_link_libraries(lasso_cd m openblas gomp)
