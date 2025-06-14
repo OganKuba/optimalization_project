@@ -43,6 +43,7 @@ set(UTILS_SRC
         io.c
         core/cd_engine.h
         updates/upd_accel_random.c
+        updates/upd_accel_random_ls.c
 )
 
 # --- Build shared library ---

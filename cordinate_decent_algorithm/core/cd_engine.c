@@ -31,27 +31,38 @@ int cd_run(CDState *st,
     if (scheme->init)
         scheme->init(st);
 
-    // Temporary storage for previous beta
+    // Allocate previous iterate
     double *beta_prev = (double *) malloc(st->n * sizeof(double));
+    if (!beta_prev) return -1;
+
     int epoch = 0;
+    double lam_prev = st->lam;
 
     // Main loop
     for (epoch = 0; epoch < max_epochs; ++epoch) {
         memcpy(st->beta_prev, st->beta, st->n * sizeof(double));
         memcpy(beta_prev, st->beta, st->n * sizeof(double));
 
-        if (rule->begin_epoch) rule->begin_epoch(st, epoch);
-
-        int inner_iters = st->n;
-
-        for (int idx = 0; idx < inner_iters; ++idx) {
-            int j0 = rule->next_j(st, idx);  // Select coordinate or block
-            scheme->update_j(st, j0);        // Perform update
+        // --- Reset momentum if lambda changes ---
+        if (st->lam != lam_prev) {
+            st->gamma_prev = 0.0;
+            memcpy(st->v_buf, st->beta, st->n * sizeof(double));
+            lam_prev = st->lam;
         }
 
-        if (rule->end_epoch) rule->end_epoch(st);
+        if (rule->begin_epoch)
+            rule->begin_epoch(st, epoch);
 
-        // Check convergence
+        int inner_iters = st->n;
+        for (int idx = 0; idx < inner_iters; ++idx) {
+            int j0 = rule->next_j(st, idx);   // Choose coordinate
+            scheme->update_j(st, j0);         // Apply update
+        }
+
+        if (rule->end_epoch)
+            rule->end_epoch(st);
+
+        // Convergence check: max|β_k - β_{k-1}|
         double maxdiff = 0.0;
         for (int j = 0; j < st->n; ++j) {
             double d = fabs(st->beta[j] - beta_prev[j]);
@@ -113,8 +124,8 @@ CDState cd_create_state(const double *X, const double *y,
 
     st.gamma_prev = 0.0;  // γ₋₁
     const double lambda2 = 1e-4;
-    // st.sigma = lambda2;
-    st.sigma = 0.0;
+    st.sigma = lambda2;
+    // st.sigma = 0.0;
 
     st.norm2 = precompute_col_norm2(X, m, n);
 

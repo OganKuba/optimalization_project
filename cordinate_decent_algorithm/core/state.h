@@ -52,6 +52,8 @@ typedef struct CDState {
     double v_a,  v_b;    /* v       = v_a  · beta    + v_b  · v_buf */
     double *rv_buf;      /* m-elem., domyślnie b */
     double *v_buf;       /* n-elem., domyślnie beta */
+
+    void *scheme_data;
 } CDState;
 
 #endif

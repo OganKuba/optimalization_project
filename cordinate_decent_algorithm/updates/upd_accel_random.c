@@ -1,72 +1,77 @@
-/* --------------------------------------------------------------- *
- *  Minimal-Lazy Nesterov (σ=0, bez rv_buf)                        *
- * --------------------------------------------------------------- */
+/* --------------------------------------------------------- *
+ *  nesterov_fast.c  –  Accelerated Randomized CD (σ > 0)
+ *  zgodny z Algorytmem 4 Wrighta + adaptive restart
+ * --------------------------------------------------------- */
 #include <math.h>
+#include <string.h>
 #include <cblas.h>
 #include <stdio.h>
 
 #include "../core/cd_engine.h"
 #include "utils.h"
 
-/* ---------- parametry ---------- */
-#define LOG_EVERY 40          /* epok */
-
-/* ---------- γ_{k+1} ------------ */
-static inline double gamma_next(double g_prev, int n)
+/* ---------------- γ_{k+1}  ------------------- */
+static inline double gamma_next(double g_prev,
+                                double sigma,
+                                int    n)
 {
-    double disc = 1.0 + 4.0 * n * n * g_prev * g_prev;
-    return 0.5 * (1.0 + sqrt(disc)) / n;
+    double a = 1.0;
+    double b = -1.0 / n - g_prev * g_prev * sigma / n;
+    double c = -g_prev * g_prev;
+    double disc = b * b - 4.0 * a * c;
+    return (-b + sqrt(disc)) / (2.0 * a);
 }
 
-/* ---------- init --------------- */
-static int nesterov_init(CDState *st)
+/* ---------------- init ----------------------- */
+static int nesterov_fast_init(CDState *st)
 {
     st->gamma_prev = 0.0;
     st->vr_counter = 0;
-    /* v_buf = beta (start) */
     memcpy(st->v_buf, st->beta, (size_t)st->n * sizeof(double));
-    st->sigma = 0.0;           /* koniecznie σ = 0 */
     return 0;
 }
 
-/* ---------- pojedynczy krok ---- */
-static void nesterov_update_j(CDState *st, int j)
+/* ---------------- pojedynczy krok ------------ */
+static void nesterov_fast_update_j(CDState *st, int j)
 {
     const int m = st->m, n = st->n;
-    const double *Xj = st->X + (size_t)j*m;
-    double Lj = st->norm2[j];
+    const double *Xj = st->X + (size_t)j * m;
 
-    double gamma = gamma_next(st->gamma_prev, n);
-    double alpha = 1.0 / (gamma * n);          /* β = 1 */
+    double gamma = gamma_next(st->gamma_prev, st->sigma, n);
+    double alpha = (n - gamma * st->sigma) /
+                   (gamma * ((double)n * n - st->sigma));
+    double beta  = 1.0 - gamma * st->sigma / n;
 
-    /* grad = -⟨Xj, resid⟩ */
-    double grad = -cblas_ddot(m, Xj, 1, st->resid, 1);
+    double Lj   = st->norm2[j] + st->sigma;
+    double grad = -cblas_ddot(m, Xj, 1, st->resid, 1)
+                  + st->sigma * st->beta[j];
 
-    /* prox-step */
-    double yj = alpha * st->v_buf[j] + (1.0 - alpha) * st->beta[j];
-    double x_new = shrink(yj - grad / Lj, st->lam / Lj);
+    double yj     = alpha * st->v_buf[j] + (1.0 - alpha) * st->beta[j];
+    double x_new  = shrink(yj - grad / Lj, st->lam / Lj);
 
     double dx = x_new - st->beta[j];
-    st->beta[j] = x_new;
-    if (dx)
+    if (dx) {
+        st->beta[j] = x_new;
         cblas_daxpy(m, -dx, Xj, 1, st->resid, 1);
+    }
 
-    /* momentum */
-    double dv = -(gamma / Lj) * grad;
-    st->v_buf[j] += dv;
+    if ((x_new - yj) * dx > 0.0) {
+        gamma       = 0.0;
+        alpha       = 1.0 / n;
+        beta        = 1.0;
+        st->v_buf[j]= st->beta[j];
+    }
+
+    st->v_buf[j] = beta * st->v_buf[j]
+                 + (1.0 - beta) * yj
+                 - (gamma / Lj) * grad;
 
     st->gamma_prev = gamma;
     st->vr_counter++;
-
-    /* lekkie logowanie */
-    if (LOG_EVERY && j == 0 && st->vr_counter % (LOG_EVERY*n) == 0)
-        printf("[ep %ld] γ=%.3e α=%.3e ‖β‖=%.3e\n",
-               st->vr_counter/n, gamma, alpha,
-               sqrt(st->dot(st->beta, st->beta, n)));
 }
 
-/* ---------- rejestracja -------- */
+/* ---------------- rejestracja ---------------- */
 const CDUpdateScheme SCHEME_NESTEROV = {
-    .init     = nesterov_init,
-    .update_j = nesterov_update_j
+    .init     = nesterov_fast_init,
+    .update_j = nesterov_fast_update_j
 };

@@ -1,16 +1,33 @@
-# This is a sample Python script.
+import pandas as pd, os
+import matplotlib.pyplot as plt
+from datasets   import make_dense, make_sparse, california
+from experiment import run
+from plots      import scatter
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+os.environ.setdefault("OMP_NUM_THREADS","4")
 
+EXP = [
+    #   dataset-factory        lam_start lam_end  η
+    (make_dense (500,1000),   0.1, 0.02, 0.85),
+    (make_dense (1000,5000),  0.1, 0.02, 0.85),
+    (make_sparse(500,1000,0.01), 0.1, 0.02, 0.85),
+    (make_sparse(500,10000,0.01),0.1, 0.02, 0.85),
+    (california(),            0.1, 0.005,0.80),
+]
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+all_rows=[]
+for ds,ls,le,eta in EXP:
+    rows=run(ds, lam_start_factor=ls,
+                  lam_end_factor=le,
+                  eta=eta)
+    all_rows.extend(rows)
 
+df = pd.DataFrame(all_rows)
+df.to_csv("lasso_cd_bench.csv", index=False, float_format="%.12g")
+print("Zapisano lasso_cd_bench.csv")
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+# --- wykresy: dzielimy gęste / rzadkie po nazwie ds --------
+scatter(df[df.ds.str.startswith("dense")],  "Dense – time vs MSE")
+scatter(df[df.ds.str.startswith("sparse")], "Sparse – time vs MSE")
+scatter(df[df.ds=="california"],            "California – time vs MSE")
+plt.show()
