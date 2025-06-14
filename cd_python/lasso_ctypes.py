@@ -5,7 +5,7 @@ from pathlib import Path
 import time
 
 # automatyczna ścieżka: <this file>/../build/liblasso_cd.so
-lib_path = Path("/home/kubog/optymalizacja/cmake-build-debug/liblasso_cd.so")
+lib_path = Path("/home/kubog/optimalization_project/cordinate_decent_algorithm/cmake-build-debug/liblasso_cd.so")
 lib = ct.CDLL(str(lib_path))
 
 _run = lib.lasso_cd_run
