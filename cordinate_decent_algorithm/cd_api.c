@@ -67,6 +67,8 @@ DLL_EXPORT int lasso_cd_run(const double *X, const double *y,
         sch = &SCHEME_PROX_POINT;
     else if (strcmp(sch_name, "bcm") == 0)
         sch = &SCHEME_BCM;
+    else if (strcmp(sch_name, "nesterov") == 0 || strcmp(sch_name, "accel") == 0)
+        sch = &SCHEME_NESTEROV;
 
     // Create and initialize solver state
     CDState st = cd_create_state(X, y, m, n, lam_start);

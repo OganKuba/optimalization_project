@@ -40,6 +40,18 @@ typedef struct CDState {
     double *resid_snap; // Snapshot residuals: r̃ = y - X * β̃
     double *grad_snap; // Snapshot gradient: ∇f(β̃) (size n)
     long vr_counter; // Counter for VR steps (used to trigger snapshots periodically)
+
+    double *y_aux;       /* y_k in Alg-4 */
+    double *v_aux;       /* v_k in Alg-4 */
+    double *resid_y;     /* residuals for y_k */
+    double *resid_v;
+    double  gamma_prev;  /* γ_{k-1} */
+    double  sigma;       /* strong-convexity modulus σ */
+
+    double rv_a, rv_b;   /* resid_v = rv_a · rv_buf  + rv_b · resid */
+    double v_a,  v_b;    /* v       = v_a  · beta    + v_b  · v_buf */
+    double *rv_buf;      /* m-elem., domyślnie b */
+    double *v_buf;       /* n-elem., domyślnie beta */
 } CDState;
 
 #endif

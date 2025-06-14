@@ -89,6 +89,32 @@ CDState cd_create_state(const double *X, const double *y,
     st.resid = (double *) malloc((size_t) m * sizeof(double));
     memcpy(st.resid, y, (size_t) m * sizeof(double));
 
+    st.y_aux    = (double*)calloc(n, sizeof(double));
+    st.v_aux    = (double*)calloc(n, sizeof(double));
+    st.resid_y  = (double*)malloc(m * sizeof(double));
+
+    st.resid_v   = calloc(m, sizeof(double));   /* rv₀ = b             */
+    memcpy(st.resid_v, y, m*sizeof(double));
+
+    memcpy(st.y_aux,    st.beta, n * sizeof(double));  // y₀ = x₀
+    memcpy(st.v_aux,    st.beta, n * sizeof(double));  // v₀ = x₀
+    memcpy(st.resid_y,  y,       m * sizeof(double));  // r_y = y - X*y₀
+
+    st.rv_a = 1.0;
+    st.rv_b = 0.0;
+    st.v_a  = 0.0;
+    st.v_b  = 1.0;
+
+    st.rv_buf = (double*)malloc(m * sizeof(double));
+    memcpy(st.rv_buf, y, m * sizeof(double));  /* b */
+
+    st.v_buf = (double*)malloc(n * sizeof(double));
+    memcpy(st.v_buf, st.beta, n * sizeof(double));
+
+    st.gamma_prev = 0.0;  // γ₋₁
+    const double lambda2 = 1e-4;
+    st.sigma = lambda2;
+
     st.norm2 = precompute_col_norm2(X, m, n);
 
     st.axpy = axpy;
@@ -111,6 +137,14 @@ void cd_free_state(CDState *st) {
     free(st->beta_snap);
     free(st->resid_snap);
     free(st->grad_snap);
+
+    free(st->y_aux);
+    free(st->v_aux);
+    free(st->resid_y);
+    free(st->resid_v);
+
+    free(st->rv_buf);
+    free(st->v_buf);
 
     // Clean up rule_data (if needed)
     if (st->rule_data) {

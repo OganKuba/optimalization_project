@@ -28,7 +28,8 @@ set(UPDATES_SRC
         updates/upd_prox_linear_ext.c
         updates/upd_prox_linear_sgd.c
         updates/upd_prox_linear_svrg.c
-        updates/upd_prox_linear_enet.c       # NEW
+        updates/upd_prox_linear_enet.c
+        updates/upd_accel_random.c
 )
 
 
@@ -39,6 +40,8 @@ set(UPDATES_SRC
 set(UTILS_SRC
         utils.c
         io.c
+        core/cd_engine.h
+        updates/upd_accel_random.c
 )
 
 # --- Build shared library ---

@@ -10,6 +10,7 @@ extern const CDUpdateScheme SCHEME_PROX_LINEAR_EXT;
 extern const CDUpdateScheme SCHEME_PROX_LINEAR_SGD;
 extern const CDUpdateScheme SCHEME_PROX_LINEAR_SVRG;
 extern const CDUpdateScheme SCHEME_PROX_LINEAR_ENET;
+extern const CDUpdateScheme SCHEME_NESTEROV;
 
 
 #endif
