@@ -28,16 +28,16 @@
  *
  * Returns: total number of epochs run
  */
-DLL_EXPORT int lasso_cd_run(const double *X, const double *y,
+DLL_EXPORT int lasso_cd_run(const double* X, const double* y,
                             int m, int n,
-                            double *beta_out,
+                            double* beta_out,
                             double lam_start, double lam_end, double eta,
                             double tol, int max_epochs,
-                            const char *rule_name,
-                            const char *sch_name)
+                            const char* rule_name,
+                            const char* sch_name)
 {
     // Default rule: cyclic
-    const CDIndexRule *rule = &RULE_CYCLIC;
+    const CDIndexRule* rule = &RULE_CYCLIC;
 
     // Choose coordinate selection rule
     if (strcmp(rule_name, "gs_r") == 0)
@@ -52,7 +52,7 @@ DLL_EXPORT int lasso_cd_run(const double *X, const double *y,
         rule = &RULE_BLOCK_SHUFFLE;
 
     // Default update scheme: standard prox-linear
-    const CDUpdateScheme *sch = &SCHEME_PROX_LINEAR;
+    const CDUpdateScheme* sch = &SCHEME_PROX_LINEAR;
 
     // Choose update scheme
     if (strcmp(sch_name, "prox_linear_enet") == 0)
@@ -77,24 +77,23 @@ DLL_EXPORT int lasso_cd_run(const double *X, const double *y,
     st.rule_cleanup = rule->cleanup;
 
     // Choose block size for BCM or block rules
-    int block_size = (n % 10 == 0 ? 10 :
-                      n % 5  == 0 ? 5  :
-                      n % 4  == 0 ? 4  :
-                      n % 3  == 0 ? 3  :
-                      n % 2  == 0 ? 2  : 1);
+    int block_size = (n % 10 == 0 ? 10 : n % 5 == 0 ? 5 : n % 4 == 0 ? 4 : n % 3 == 0 ? 3 : n % 2 == 0 ? 2 : 1);
 
     // Force block indexing if using BCM
-    if (strcmp(sch_name, "bcm") == 0) {
-        rule = &RULE_BLOCK_SHUFFLE;  // BCM requires block selection
+    if (strcmp(sch_name, "bcm") == 0)
+    {
+        rule = &RULE_BLOCK_SHUFFLE; // BCM requires block selection
         st.rule_cleanup = rule->cleanup;
         cd_set_block_size(&st, block_size);
     }
     // Or if block_shuffle is explicitly requested
-    else if (strcmp(rule_name, "block_shuffle") == 0) {
+    else if (strcmp(rule_name, "block_shuffle") == 0)
+    {
         cd_set_block_size(&st, block_size);
     }
     // Otherwise use single-coordinate updates
-    else {
+    else
+    {
         cd_set_block_size(&st, 1);
     }
 
@@ -102,10 +101,11 @@ DLL_EXPORT int lasso_cd_run(const double *X, const double *y,
     double lam = lam_start;
     int total_ep = 0;
 
-    while (lam >= lam_end) {
+    while (lam >= lam_end)
+    {
         st.lam = lam;
         total_ep += cd_run(&st, rule, sch, max_epochs, tol);
-        lam *= eta;  // decay lambda geometrically
+        lam *= eta; // decay lambda geometrically
     }
 
     // Copy final beta to output

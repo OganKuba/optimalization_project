@@ -4,47 +4,43 @@
 #include "updates.h"
 
 /*
- * Proximal linear update (coordinate-wise for Lasso):
+ * Proximal Linear Update (for Lasso):
  *
- *  new_beta_j = shrink( beta_j - (1 / L_j) * grad_j , lambda / L_j )
+ * Performs coordinate-wise update using:
+ *   β_j ← shrink( β_j - grad_j / L_j, λ / L_j )
  *
  * where:
- *  - grad_j = -X_j^T * r          (since r = y - X * beta)
- *  - L_j = ||X_j||^2              (squared norm of feature j)
- *  - shrink() is the soft-thresholding operator
+ *   grad_j = -X_jᵀ r         (r = y - Xβ)
+ *   L_j    = ||X_j||²        (precomputed column norm²)
+ *   shrink = soft-thresholding operator
  */
-static void prox_linear_update(CDState *st, int j)
+static void prox_linear_update(CDState* st, int j)
 {
-    int m = st->m;  // number of data points
-    const double *Xj = st->X + (size_t)j * m;  // pointer to column j of X
+    int m = st->m;
+    const double* Xj = st->X + (size_t)j * m;
 
-    // Compute gradient: grad_j = -X_j^T * residual
-    double grad_j = -dot(Xj, st->resid, m);       // partial derivative w.r.t. beta_j
-    double L_j = st->norm2[j];                    // precomputed squared norm of X_j
+    // Compute gradient: grad_j = -X_jᵀ r
+    double grad_j = -dot(Xj, st->resid, m);
+    double L_j = st->norm2[j];
 
-    // Apply proximal (Lasso) update via soft-thresholding
+    // Proximal update (soft-thresholding)
     double new_beta = shrink(st->beta[j] - grad_j / L_j, st->lam / L_j);
     double delta = new_beta - st->beta[j];
 
-    // If no change, exit early
     if (delta == 0.0)
         return;
 
-    // Update beta
+    // Update β and residual
     st->beta[j] = new_beta;
-
-    // Update residual vector: r = r - delta * X_j
     axpy(-delta, Xj, st->resid, m);
 
-    // (Optional) store gradient if used by selection rule (e.g., Gauss-Southwell-s)
+    // Optionally update stored gradient
     if (st->grad)
         st->grad[j] = grad_j;
 }
 
-/*
- * Exported update scheme for coordinate-wise prox-linear (e.g., for Lasso)
- */
+/* Exported coordinate-wise proximal update scheme */
 const CDUpdateScheme SCHEME_PROX_LINEAR = {
-    .init      = NULL,                // No initialization needed
-    .update_j  = prox_linear_update   // Main update function
+    .init = NULL,
+    .update_j = prox_linear_update
 };

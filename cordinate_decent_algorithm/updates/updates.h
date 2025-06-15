@@ -4,7 +4,7 @@
 
 extern const CDUpdateScheme SCHEME_PROX_LINEAR;
 extern const CDUpdateScheme SCHEME_PROX_POINT;
-extern const CDIndexRule   RULE_BLOCK_SHUFFLE;
+extern const CDIndexRule RULE_BLOCK_SHUFFLE;
 extern const CDUpdateScheme SCHEME_BCM;
 extern const CDUpdateScheme SCHEME_PROX_LINEAR_EXT;
 extern const CDUpdateScheme SCHEME_PROX_LINEAR_SGD;

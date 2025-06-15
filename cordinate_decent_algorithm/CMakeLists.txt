@@ -40,7 +40,6 @@ set(UPDATES_SRC
 # --- Utils and I/O ---
 set(UTILS_SRC
         utils.c
-        io.c
         core/cd_engine.h
         updates/upd_accel_random.c
         updates/upd_accel_random_ls.c

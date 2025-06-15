@@ -6,7 +6,6 @@ static int next_cyclic(CDState *st, int idx) {
     return idx;
 }
 
-/* no init / hooks needed */
 const CDIndexRule RULE_CYCLIC = {
     .init        = NULL,
     .begin_epoch = NULL,
