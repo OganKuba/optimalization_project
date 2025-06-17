@@ -1,22 +1,7 @@
-"""
-extended_benchmark.py
-Copyright 2025
-
-Run coordinate-descent Lasso experiments with:
-  • multiple eta values
-  • multiple regularisation strengths (lam_end)
-  • all schemes / rules from liblasso_cd
-and produce a rich set of visualisations.
-
-Usage:
-    python extended_benchmark.py
-"""
-
 import os, time, itertools, ctypes as ct, numpy as np
 from pathlib import Path
-from typing  import List, Dict, Tuple
+from typing import List, Dict, Tuple
 from multiprocessing import Process, Queue
-
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -30,18 +15,20 @@ from sklearn.linear_model import Lasso
 #  Helpers: data sets
 # ──────────────────────────────────────────────────────────────────────────
 SEED = 0
-_rng  = np.random.default_rng(SEED)
+_rng = np.random.default_rng(SEED)
+
 
 def make_dense(m: int, n: int, k: int = 20, noise: float = 0.01) -> Dict:
     X = _rng.standard_normal((m, n))
     X = StandardScaler().fit_transform(X)
-    beta = np.zeros(n); idx = _rng.choice(n, k, replace=False)
+    beta = np.zeros(n);
+    idx = _rng.choice(n, k, replace=False)
     beta[idx] = _rng.standard_normal(k)
     y = X @ beta + noise * _rng.standard_normal(m)
     return {"name": f"dense_{m}x{n}", "X": X, "y": y}
 
+
 def run_with_timeout(func, args=(), kwargs={}, timeout=120):
-    """Run a function with timeout (in seconds) using a separate process."""
     q = Queue()
 
     def wrapper(q, *args, **kwargs):
@@ -57,14 +44,14 @@ def run_with_timeout(func, args=(), kwargs={}, timeout=120):
     if p.is_alive():
         p.terminate()
         p.join()
-        raise TimeoutError(f"⏱️ Execution exceeded {timeout} seconds.")
+        raise TimeoutError(f" Execution exceeded {timeout} seconds.")
     if not q.empty():
         result = q.get()
         if isinstance(result, Exception):
             raise result
         return result
     else:
-        raise TimeoutError("⏱️ No result returned before timeout.")
+        raise TimeoutError(" No result returned before timeout.")
 
 
 def make_sparse(m: int, n: int, density: float = 0.01,
@@ -76,10 +63,12 @@ def make_sparse(m: int, n: int, density: float = 0.01,
     X = np.zeros((m, n))
     X[rows, cols] = data
     X = StandardScaler().fit_transform(X)
-    beta = np.zeros(n); idx = _rng.choice(n, k, replace=False)
+    beta = np.zeros(n);
+    idx = _rng.choice(n, k, replace=False)
     beta[idx] = _rng.standard_normal(k)
     y = X @ beta + noise * _rng.standard_normal(m)
     return {"name": f"sparse{density}_{m}x{n}", "X": X, "y": y}
+
 
 def california() -> Dict:
     data = fetch_california_housing()
@@ -87,15 +76,17 @@ def california() -> Dict:
     y = data.target
     return {"name": "california", "X": X, "y": y}
 
+
 # ──────────────────────────────────────────────────────────────────────────
 #  Helpers: C-wrapper, metrics
 # ──────────────────────────────────────────────────────────────────────────
+# set path to current location of libraru
 LIB = ct.CDLL(str(
     Path("/home/kubog/optimalization_project/cordinate_decent_algorithm"
-         "/cmake-build-debug/liblasso_cd.so")))   # adjust if needed
+         "/cmake-build-debug/liblasso_cd.so")))
 
 _run = LIB.lasso_cd_run
-_run.restype  = ct.c_int
+_run.restype = ct.c_int
 _run.argtypes = [ct.POINTER(ct.c_double), ct.POINTER(ct.c_double),
                  ct.c_int, ct.c_int,
                  ct.POINTER(ct.c_double),
@@ -103,13 +94,14 @@ _run.argtypes = [ct.POINTER(ct.c_double), ct.POINTER(ct.c_double),
                  ct.c_double, ct.c_int,
                  ct.c_char_p, ct.c_char_p]
 
+
 def solve_lasso(X: np.ndarray, y: np.ndarray,
                 lam_start: float, lam_end: float, eta: float,
-                tol: float       = 1e-6,
-                max_epochs: int  = 1000,
-                rule: bytes      = b"random",
-                scheme: bytes    = b"nesterov"
-               ) -> Tuple[np.ndarray, int, float]:
+                tol: float = 1e-6,
+                max_epochs: int = 1000,
+                rule: bytes = b"random",
+                scheme: bytes = b"nesterov"
+                ) -> Tuple[np.ndarray, int, float]:
     """Thin wrapper around the C library."""
     X_f = np.asfortranarray(X, dtype=np.float64)
     y_c = np.ascontiguousarray(y, dtype=np.float64)
@@ -117,7 +109,7 @@ def solve_lasso(X: np.ndarray, y: np.ndarray,
     beta = np.zeros(n, dtype=np.float64)
     t0 = time.perf_counter()
     ep = _run(X_f.ctypes.data_as(ct.POINTER(ct.c_double)),
-              y_c .ctypes.data_as(ct.POINTER(ct.c_double)),
+              y_c.ctypes.data_as(ct.POINTER(ct.c_double)),
               m, n,
               beta.ctypes.data_as(ct.POINTER(ct.c_double)),
               lam_start, lam_end, eta,
@@ -126,33 +118,37 @@ def solve_lasso(X: np.ndarray, y: np.ndarray,
     t1 = time.perf_counter()
     return beta, ep, t1 - t0
 
+
 def lam_grid(X: np.ndarray, lam_start_factor: float,
              lam_end_factor: float) -> Tuple[float, float]:
     lam_max = np.max(np.abs(X.T @ X[:, 0]))
     return lam_start_factor * lam_max, lam_end_factor * lam_max
 
+
 def evaluate(beta: np.ndarray, X: np.ndarray, y: np.ndarray,
              lam: float) -> Tuple[float, float, int]:
-    mse   = mean_squared_error(y, X @ beta)
+    mse = mean_squared_error(y, X @ beta)
     resid = y - X @ beta
-    loss  = 0.5 * np.sum(resid ** 2) + lam * np.sum(np.abs(beta))
-    nnz   = int((np.abs(beta) > 1e-6).sum())
+    loss = 0.5 * np.sum(resid ** 2) + lam * np.sum(np.abs(beta))
+    nnz = int((np.abs(beta) > 1e-6).sum())
     return mse, loss, nnz
+
 
 # ──────────────────────────────────────────────────────────────────────────
 #  Benchmark core
 # ──────────────────────────────────────────────────────────────────────────
-SCHEMES  = [b"nesterov", b"nesterov_ls",
-            b"prox_lin", b"prox_point",
-            b"prox_linear_ext", b"prox_linear_sgd",
-            b"prox_linear_svrg", b"bcm"]
+SCHEMES = [b"nesterov", b"nesterov_ls",
+           b"prox_lin", b"prox_point",
+           b"prox_linear_ext", b"prox_linear_sgd",
+           b"prox_linear_svrg", b"bcm"]
 
-RULES    = [b"cyclic", b"shuffle", b"random",
-            b"block_shuffle", b"gs_r", b"gsl_r"]
+RULES = [b"cyclic", b"shuffle", b"random",
+         b"block_shuffle", b"gs_r", b"gsl_r"]
 
-ETA_GRID        = [0.3, 0.5, 0.7, 0.85, 0.95]
-LAM_END_GRID_FR = [0.1, 0.01, 0.001]   # × lam_max
-TOL_DEFAULT     = 1e-6
+ETA_GRID = [0.3, 0.5, 0.7, 0.85, 0.95]
+LAM_END_GRID_FR = [0.1, 0.01, 0.001]  # × lam_max
+TOL_DEFAULT = 1e-6
+
 
 def run_experiment(dataset: Dict,
                    lam_start_factor: float,
@@ -210,10 +206,10 @@ def run_experiment(dataset: Dict,
                               f"eta={eta:<4} λ/λmax={lam_frac:<5} "
                               f"→ MSE={mse:.3e}, nnz={nnz}, ep={ep}, time={t:.4f}s")
                     except TimeoutError as te:
-                        print(f"⏱️ TIMEOUT: {dataset['name']} | {scheme.decode():<15} {rule.decode():<12} "
+                        print(f" TIMEOUT: {dataset['name']} | {scheme.decode():<15} {rule.decode():<12} "
                               f"eta={eta:<4} λ/λmax={lam_frac:<5} → skipped after 30 min")
                     except Exception as e:
-                        print(f"⚠️  Skipped {dataset['name']} "
+                        print(f" Skipped {dataset['name']} "
                               f"{scheme.decode()}-{rule.decode()} "
                               f"(eta={eta}, lam_frac={lam_frac}): {e}")
 
@@ -250,21 +246,24 @@ def boxplot_mse(df: pd.DataFrame) -> None:
     plt.title("MSE distribution per scheme")
     plt.tight_layout()
 
+
 def barplot_time(df: pd.DataFrame) -> None:
     df_mean = (df.groupby("scheme", as_index=False)
-                 .agg(mean_time=("time", "mean")))
+               .agg(mean_time=("time", "mean")))
     sns.barplot(x="scheme", y="mean_time", data=df_mean, ci=None)
     plt.xticks(rotation=45)
     plt.ylabel("time [s]")
     plt.title("Mean runtime per scheme")
     plt.tight_layout()
 
+
 def epochs_plot(df: pd.DataFrame) -> None:
     sns.boxplot(x="scheme", y="ep", data=df)
-    plt.yscale("log")
+    plt.yscale("log")    
     plt.xticks(rotation=45)
     plt.title("Epochs to convergence (log-scale)")
     plt.tight_layout()
+
 
 def sparsity_heatmap(df: pd.DataFrame) -> None:
     pivot = df.pivot_table(index="scheme", columns="lam_end_frac",
@@ -274,21 +273,23 @@ def sparsity_heatmap(df: pd.DataFrame) -> None:
     plt.ylabel("")
     plt.tight_layout()
 
+
 def sklearn_relative(df: pd.DataFrame) -> pd.DataFrame:
     """Return a copy with mse_rel, time_rel columns."""
     ref = (df[df.scheme == "sklearn"][["ds", "lam_end_frac", "mse", "time"]]
            .rename(columns={"mse": "mse_ref", "time": "time_ref"}))
     merged = df.merge(ref, on=["ds", "lam_end_frac"], how="left")
-    merged["mse_rel"]  = merged["mse"]  / merged["mse_ref"]
+    merged["mse_rel"] = merged["mse"] / merged["mse_ref"]
     merged["time_rel"] = merged["time"] / merged["time_ref"]
     return merged
+
 
 def best_table(df: pd.DataFrame) -> None:
     """Print best schemes per data set for speed and accuracy."""
     best_mse = (df.loc[df.groupby(["ds", "lam_end_frac"])["mse"].idxmin()]
-                  [["ds", "lam_end_frac", "scheme", "rule", "mse"]])
+    [["ds", "lam_end_frac", "scheme", "rule", "mse"]])
     best_time = (df.loc[df.groupby(["ds", "lam_end_frac"])["time"].idxmin()]
-                   [["ds", "lam_end_frac", "scheme", "rule", "time"]])
+    [["ds", "lam_end_frac", "scheme", "rule", "time"]])
     print("\n=== Best MSE per data set / λ_end ===")
     for _, r in best_mse.iterrows():
         print(f"{r.ds} (λ_end/λ_max={r.lam_end_frac:.3g}) → "
@@ -298,28 +299,27 @@ def best_table(df: pd.DataFrame) -> None:
         print(f"{r.ds} (λ_end/λ_max={r.lam_end_frac:.3g}) → "
               f"{r.scheme} [{r.rule}], time={r.time:.3f}s")
 
+
 def loss_relative(df: pd.DataFrame) -> pd.DataFrame:
     ref = df[df.scheme == "sklearn"][["ds", "lam_end_frac", "loss"]].rename(columns={"loss": "loss_ref"})
     merged = df.merge(ref, on=["ds", "lam_end_frac"], how="left")
     merged["loss_rel"] = merged["loss"] / merged["loss_ref"]
     return merged
 
-# ──────────────────────────────────────────────────────────────────────────
-#  Main
-# ──────────────────────────────────────────────────────────────────────────
+
 def main() -> None:
     os.environ.setdefault("OMP_NUM_THREADS", "4")
 
     DATASETS = [
-        make_dense (500, 1000),
-        make_dense (1000, 5000),
+        make_dense(500, 1000),
+        make_dense(1000, 5000),
         make_sparse(500, 1000, 0.01),
         california()
     ]
 
     all_rows: List[Dict] = []
     for ds in DATASETS:
-        print(f"\n▶️  Running grid on {ds['name']} …")
+        print(f"\n Running grid on {ds['name']} …")
         rows = run_experiment(ds,
                               lam_start_factor=0.1,
                               eta_values=ETA_GRID,
@@ -351,7 +351,7 @@ def main() -> None:
     best_combined = pd.concat([top_mse_rows, top_time_rows, sklearn_rows],
                               ignore_index=True)
     best_combined.to_csv("best_5_per_ds.csv", index=False, float_format="%.6f")
-    print(f"\n✔️  Saved best 5 MSE/time per dataset + sklearn to best_5_per_ds.csv")
+    print(f"\n Saved best 5 MSE/time per dataset + sklearn to best_5_per_ds.csv")
 
     best_time_rows = (df[df.scheme != "sklearn"]
                       .sort_values(by=["ds", "lam_end_frac", "time"])
@@ -380,14 +380,22 @@ def main() -> None:
     best_mse_rows.to_csv("best_mse.csv", index=False, float_format="%.6f")
     best_loss_rows.to_csv("best_loss.csv", index=False, float_format="%.6f")
 
-    print(f"\n✔️  Saved best (fastest & most accurate) methods per dataset to best_single_method_per_ds.csv")
+    print(f"\n Saved best (fastest & most accurate) methods per dataset to best_single_method_per_ds.csv")
 
     # ─── Visualisations ────────────────────────────────────────────────
     sns.set_theme(style="whitegrid", font_scale=0.9)
-    plt.figure(figsize=(8, 4));  boxplot_mse(df[df.scheme != "sklearn"]);     plt.savefig("boxplot_mse.png")
-    plt.figure(figsize=(8, 4));  barplot_time(df[df.scheme != "sklearn"]);    plt.savefig("barplot_time.png")
-    plt.figure(figsize=(8, 4));  epochs_plot(df[df.scheme != "sklearn"]);     plt.savefig("epochs.png")
-    plt.figure(figsize=(6, 4));  sparsity_heatmap(df[df.scheme != "sklearn"]);plt.savefig("sparsity_heatmap.png")
+    plt.figure(figsize=(8, 4));
+    boxplot_mse(df[df.scheme != "sklearn"]);
+    plt.savefig("boxplot_mse.png")
+    plt.figure(figsize=(8, 4));
+    barplot_time(df[df.scheme != "sklearn"]);
+    plt.savefig("barplot_time.png")
+    plt.figure(figsize=(8, 4));
+    epochs_plot(df[df.scheme != "sklearn"]);
+    plt.savefig("epochs.png")
+    plt.figure(figsize=(6, 4));
+    sparsity_heatmap(df[df.scheme != "sklearn"]);
+    plt.savefig("sparsity_heatmap.png")
 
     plt.figure(figsize=(8, 4));
     sns.boxplot(x="scheme", y="loss", data=df[df.scheme != "sklearn"], showfliers=False)
@@ -399,7 +407,10 @@ def main() -> None:
     rel = sklearn_relative(df)
     plt.figure(figsize=(8, 4))
     sns.boxplot(x="scheme", y="mse_rel", data=rel[rel.scheme != "sklearn"])
-    plt.xticks(rotation=45); plt.axhline(1, ls="--"); plt.title("MSE vs sklearn"); plt.tight_layout()
+    plt.xticks(rotation=45);
+    plt.axhline(1, ls="--");
+    plt.title("MSE vs sklearn");
+    plt.tight_layout()
     plt.savefig("mse_vs_sklearn.png")
 
     loss_rel_df = loss_relative(df)
@@ -413,8 +424,12 @@ def main() -> None:
 
     plt.figure(figsize=(8, 4))
     sns.boxplot(x="scheme", y="time_rel", data=rel[rel.scheme != "sklearn"])
-    plt.xticks(rotation=45); plt.axhline(1, ls="--"); plt.ylabel("time / sklearn"); plt.title("Runtime vs sklearn")
-    plt.tight_layout(); plt.savefig("time_vs_sklearn.png")
+    plt.xticks(rotation=45);
+    plt.axhline(1, ls="--");
+    plt.ylabel("time / sklearn");
+    plt.title("Runtime vs sklearn")
+    plt.tight_layout();
+    plt.savefig("time_vs_sklearn.png")
 
     # Show interactive windows last
     plt.show()
